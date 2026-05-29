@@ -10,9 +10,9 @@ import {
 
 const root = process.cwd();
 const args = parseArgs();
-const index = writeRunIndex(root);
+const index = args.refresh ? writeRunIndex(root) : null;
 
-let runs = index.runs || readRuns(root);
+let runs = index?.runs || readRuns(root);
 if (args.employee) {
   runs = runs.filter((run) => (
     run.employee_id === args.employee || run.employee_alias === args.employee
@@ -31,6 +31,7 @@ if (args.json) {
       employee: args.employee || null,
       status: args.status || null
     },
+    refreshed: Boolean(args.refresh),
     runs
   }, null, 2));
 } else {

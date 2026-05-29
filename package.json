@@ -8,6 +8,7 @@
     "validate": "node scripts/validate.mjs",
     "setup:demo": "node scripts/setup-demo.mjs",
     "discover": "node scripts/discover-employees.mjs",
+    "draft": "node scripts/draft-task.mjs",
     "intake": "node scripts/intake.mjs",
     "submit": "node scripts/submit-task.mjs",
     "status": "node scripts/status.mjs",
@@ -17,6 +18,7 @@
     "reconcile": "node scripts/reconcile.mjs",
     "resolve": "node scripts/resolve.mjs",
     "collect": "node scripts/collect-results.mjs",
+    "sweep": "node scripts/sweep-runs.mjs",
     "run-worker": "node scripts/run-worker.mjs"
   },
   "engines": {

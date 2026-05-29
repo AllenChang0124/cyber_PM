@@ -68,12 +68,13 @@ export function parseArgs(argv = process.argv.slice(2)) {
 
     const key = token.slice(2);
     const next = argv[index + 1];
-    if (!next || next.startsWith('--')) {
-      args[key] = true;
+    const value = (!next || next.startsWith('--')) ? true : next;
+    if (Object.hasOwn(args, key)) {
+      args[key] = Array.isArray(args[key]) ? [...args[key], value] : [args[key], value];
     } else {
-      args[key] = next;
-      index += 1;
+      args[key] = value;
     }
+    if (value !== true) index += 1;
   }
   return args;
 }
