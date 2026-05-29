@@ -18,6 +18,7 @@
 - 不写入 `~/.claude`、`~/.codex` 或其他用户 home 配置。
 - 不自动创建员工池；员工部署由用户控制。
 - 后台 watcher 或 daemon 不是默认方案；优先通过明确的 PM 命令触发调度，便于观察和调试。
+- 员工模板共性修改必须回到 `../cyber_employee` 提交并 push；`employees/*` 只同步模板，不直接把模板改动从员工 clone 推上游。
 
 ## 常用命令
 
@@ -45,4 +46,6 @@ npm run results
 - 需要多个员工并行时，使用 `npm run intake -- --file ... --background`，并用 `npm run runs` 观察运行状态。
 - 只有调试或特殊分配时，才使用 `npm run submit -- --employee ...` 拆开派发。
 - 员工结果收集后，先看 `pm_status`。`review-pending` 表示等待 PM 验收，`needs-rework` 表示验收失败并应查看返工草稿。
+- 如需修改员工模板脚本、skills、Claude 配置或协议文档，先切到 `../cyber_employee` 修改、提交、push，再同步 PM 内员工 clone。
+- PM 内 `employees/*` 的 `config/employee.yaml`、`agent.json` 是具体员工身份配置，不应回推污染模板 main。
 - JSON 是机器协议权威来源；Markdown 仅作为人类可读附件。

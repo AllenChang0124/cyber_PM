@@ -24,6 +24,13 @@ codex/
 
 PM 后续只在这些已部署员工中调度，不负责自动创建无限员工池。
 
+模板维护准则：
+
+- 员工模板共性修改只在 sibling repo `../cyber_employee` 中完成、提交并 push 到 GitHub。
+- `cyber_PM/employees/*` 是具体员工 clone，只用于运行、身份配置和同步模板更新。
+- 不从 `employees/*` 直接把模板改动 push 到模板 main，避免把具体员工身份污染母体模板。
+- 模板更新后，在 PM 内同步员工 clone，再运行员工侧 `npm run sync` 和 PM 侧 `npm run discover`。
+
 ## 2. 初始化
 
 在 `cyber_PM` 内运行：
@@ -293,6 +300,25 @@ PM 仓库只提交框架、脚本、示例和文档。以下内容是运行时�
 - `state/*`
 - `logs/*`
 - `.env`
+
+模板与员工 clone 的 git 约定：
+
+- 修改模板脚本、skills、Claude 配置、MCP 声明、协议文档：切到 `../cyber_employee` 修改、提交、push。
+- 修改具体员工身份：只改 `employees/<employee>/config/employee.yaml`，再在员工 repo 内运行 `npm run sync`。
+- 同步模板更新到已部署员工：
+
+```bash
+cd employees/junior-demo
+git pull --rebase --autostash origin main
+npm run sync
+
+cd ../senior-demo
+git pull --rebase --autostash origin main
+npm run sync
+
+cd ../..
+npm run discover
+```
 
 ## 13. 验收命令
 
