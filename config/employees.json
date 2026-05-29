@@ -1,0 +1,25 @@
+{
+  "schema_version": "pm-employees-config.v1",
+  "employees": [
+    {
+      "alias": "senior-demo",
+      "path": "employees/senior-demo",
+      "enabled": true,
+      "tags": [
+        "senior",
+        "demo"
+      ],
+      "notes": "Iter2 验收用 Senior 员工 clone。"
+    },
+    {
+      "alias": "junior-demo",
+      "path": "employees/junior-demo",
+      "enabled": true,
+      "tags": [
+        "junior",
+        "demo"
+      ],
+      "notes": "Iter2 验收用 Junior 员工 clone。"
+    }
+  ]
+}

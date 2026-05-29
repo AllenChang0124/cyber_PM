@@ -1,0 +1,18 @@
+{
+  "name": "cyber-pm",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "doctor": "node scripts/doctor.mjs",
+    "validate": "node scripts/validate.mjs",
+    "setup:demo": "node scripts/setup-demo.mjs",
+    "discover": "node scripts/discover-employees.mjs",
+    "submit": "node scripts/submit-task.mjs",
+    "status": "node scripts/status.mjs",
+    "collect": "node scripts/collect-results.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
