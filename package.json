@@ -8,6 +8,7 @@
     "validate": "node scripts/validate.mjs",
     "setup:demo": "node scripts/setup-demo.mjs",
     "discover": "node scripts/discover-employees.mjs",
+    "intake": "node scripts/intake.mjs",
     "submit": "node scripts/submit-task.mjs",
     "status": "node scripts/status.mjs",
     "tasks": "node scripts/tasks.mjs",

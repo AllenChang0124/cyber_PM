@@ -63,7 +63,42 @@ employees/junior-demo/inbox/tasks/task-0001.json
 
 当前 `submit` 命令会打印显式唤醒命令。新的目标态是：PM 接到用户任务后，通过后续的 intake/dispatch 命令自动选择员工、派发任务并触发对应员工运行。
 
-## 4. 查看状态
+## 4. 自动接收并调度任务
+
+PM 自动调度入口：
+
+```bash
+npm run intake -- --file tasks/drafts/<task_id>.json
+```
+
+该命令会：
+
+- 读取 `employee-task.v1` JSON 草稿。
+- 在已部署、已启用、可发现的员工中自动选择合适员工。
+- 写入员工 `inbox/tasks/<task_id>.json`。
+- 写入 PM `tasks/submitted/` 记录。
+- 刷新 `state/task-ledger.json`。
+- 前台启动员工 Claude Code，并传入任务执行提示。
+- 员工退出后自动执行 `collect` 和 `reconcile`。
+
+常用选项：
+
+```bash
+npm run intake -- --file tasks/drafts/<task_id>.json --dry-run
+npm run intake -- --file tasks/drafts/<task_id>.json --no-launch
+npm run intake -- --file tasks/drafts/<task_id>.json --employee junior-demo
+npm run intake -- --file tasks/drafts/<task_id>.json --force
+```
+
+自动选择规则：
+
+- 只选择 `enabled=true` 且 `discovered=true` 的员工。
+- 员工必须支持任务 `task_type`。
+- 如果任务有 `assignee_level`，员工 `level` 必须精确匹配。
+- 员工当前 `state/status.json` 必须是 `idle`。
+- 多个候选并列时，按 `config/employees.json` 注册顺序选择。
+
+## 5. 查看状态
 
 ```bash
 npm run status
@@ -77,7 +112,7 @@ npm run status
 npm run status -- --refresh
 ```
 
-## 5. 查看任务台账
+## 6. 查看任务台账
 
 ```bash
 npm run tasks
@@ -114,7 +149,7 @@ PM 验收状态：
 - `blocked`：PM 标记阻塞。
 - `canceled`：PM 取消该任务。
 
-## 6. PM 验收决策
+## 7. PM 验收决策
 
 员工结果 `completed` 不等于 PM 验收通过。收集结果后，按以下流程处理：
 
@@ -136,7 +171,7 @@ canceled
 
 PM 决策会写入 `state/task-ledger.json`，并追加 `logs/pm-events.jsonl`。两者都是运行态文件，不提交。
 
-## 7. 收集结果
+## 8. 收集结果
 
 员工通过 Claude Code 执行任务后，运行：
 
@@ -153,7 +188,7 @@ results/collected/<employee_id>/<task_id>.md
 
 `state/collections.json` 会记录已收集结果和 hash。再次运行 `collect` 时，相同结果不会重复归档；如果员工源结果发生变化，PM 会覆盖归档副本并更新索引。
 
-## 8. 查看结果汇总
+## 9. 查看结果汇总
 
 ```bash
 npm run results
@@ -169,9 +204,19 @@ npm run results -- --json
 
 `results` 默认只读，适合 PM 快速查看已归档结果、模型和结果路径。默认表格不展示 `summary`；需要完整摘要时使用 `--json`。
 
-## 9. 日常 PM 顺序
+## 10. 日常 PM 顺序
 
-当前已实现的日常操作顺序：
+推荐主流程：
+
+```bash
+npm run discover
+npm run intake -- --file tasks/drafts/<task_id>.json
+npm run tasks
+npm run results
+npm run resolve -- --task <task_id> --employee <employee_alias> --decision accepted --note "验收通过"
+```
+
+调试时也可以拆开执行：
 
 ```bash
 npm run discover
@@ -185,17 +230,11 @@ npm run tasks
 npm run resolve -- --task <task_id> --employee <employee_alias> --decision accepted --note "验收通过"
 ```
 
-其中 `discover`、`submit`、`collect`、`reconcile`、`resolve` 会写运行态。`status`、`tasks`、`results` 默认只读。
+其中 `discover`、`intake`、`submit`、`collect`、`reconcile`、`resolve` 会写运行态。`status`、`tasks`、`results` 默认只读。
 
-目标态的 PM 入口将收敛为：
+`intake --dry-run` 不写运行态；`intake --no-launch` 只派发和刷新账本，不启动员工。
 
-```bash
-npm run intake -- --file tasks/drafts/<task_id>.json
-```
-
-预期由 PM 自动完成：选择已部署员工、派发任务、触发员工执行、刷新账本。该自动触发能力尚未在当前版本实现，建议作为下一迭代优先目标。
-
-## 10. Git 约定
+## 11. Git 约定
 
 PM 仓库只提交框架、脚本、示例和文档。以下内容是运行时文件，不提交：
 
@@ -207,7 +246,7 @@ PM 仓库只提交框架、脚本、示例和文档。以下内容是运行时�
 - `logs/*`
 - `.env`
 
-## 11. 验收命令
+## 12. 验收命令
 
 ```bash
 npm run doctor
@@ -215,19 +254,18 @@ npm run validate
 npm run setup:demo
 npm run discover
 cp tasks/drafts/task-0001.example.json tasks/drafts/task-0001.json
-npm run submit -- --file tasks/drafts/task-0001.json --employee junior-demo
+npm run intake -- --file tasks/drafts/task-0001.json --dry-run
+npm run intake -- --file tasks/drafts/task-0001.json --no-launch
 npm run status
 npm run tasks
 ```
 
-员工执行完成后：
+员工自动触发执行完成后：
 
 ```bash
-npm run collect
-npm run reconcile
+npm run intake -- --file tasks/drafts/<task_id>.json
 npm run results
-npm run tasks
-npm run resolve -- --task task-0001 --employee junior-demo --decision accepted --note "验收通过"
+npm run resolve -- --task <task_id> --employee <employee_alias> --decision accepted --note "验收通过"
 npm run tasks
 npm run validate
 ```

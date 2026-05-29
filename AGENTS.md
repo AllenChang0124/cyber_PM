@@ -24,6 +24,7 @@ npm run doctor
 npm run validate
 npm run setup:demo
 npm run discover
+npm run intake -- --file tasks/drafts/task-0001.json
 npm run submit -- --file tasks/drafts/task-0001.json --employee junior-demo
 npm run status
 npm run collect
@@ -36,4 +37,6 @@ npm run results
 
 - Senior 员工适合复杂、开放度较高、需要判断的实现任务。
 - Junior 员工适合边界清晰、验收标准明确、可量化的任务。
+- 接到用户任务后，优先使用 `npm run intake -- --file ...` 自动选择、派发并触发员工。
+- 只有调试或特殊分配时，才使用 `npm run submit -- --employee ...` 拆开派发。
 - JSON 是机器协议权威来源；Markdown 仅作为人类可读附件。
