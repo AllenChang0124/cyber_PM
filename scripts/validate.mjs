@@ -73,7 +73,7 @@ for (const dir of requiredDirs) {
 }
 
 const packageJson = validateJsonFile('package.json', ['name', 'version', 'private', 'type', 'scripts']);
-for (const scriptName of ['doctor', 'validate', 'setup:demo', 'discover', 'submit', 'status', 'collect']) {
+for (const scriptName of ['doctor', 'validate', 'setup:demo', 'discover', 'submit', 'status', 'tasks', 'results', 'collect']) {
   if (!packageJson?.scripts?.[scriptName]) fail(`package.json missing script: ${scriptName}`);
 }
 
@@ -165,6 +165,23 @@ if (pathExists(path.join(root, 'state/employees.json'))) {
 if (pathExists(path.join(root, 'state/collections.json'))) {
   const collections = validateJsonFile('state/collections.json', ['schema_version', 'updated_at', 'items']);
   if (collections?.schema_version !== 'pm-collections.v1') fail('state/collections.json schema_version must be pm-collections.v1');
+  if (!Array.isArray(collections?.items)) {
+    fail('state/collections.json items must be an array');
+  }
+  for (const [index, item] of (collections?.items || []).entries()) {
+    requireFields(item, [
+      'key',
+      'employee_id',
+      'employee_alias',
+      'task_id',
+      'status',
+      'source_json',
+      'collected_json',
+      'sha256',
+      'first_collected_at',
+      'last_collected_at'
+    ], `state/collections.json items[${index}]`, errors);
+  }
 }
 
 const collectedRoot = path.join(root, 'results/collected');

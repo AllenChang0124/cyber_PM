@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 import { discoverEmployees } from './lib/protocol.mjs';
-import { printTable } from './lib/project.mjs';
+import { parseArgs, printTable } from './lib/project.mjs';
 
 const root = process.cwd();
-const index = discoverEmployees(root, { writeIndex: true });
+const args = parseArgs();
+const index = discoverEmployees(root, { writeIndex: Boolean(args.refresh) });
 
 const rows = index.employees.map((employee) => ({
   alias: employee.alias,
@@ -24,3 +25,7 @@ printTable(rows, [
   { key: 'model', header: 'model' },
   { key: 'updated_at', header: 'updated_at' }
 ]);
+
+if (args.refresh) {
+  console.log('refreshed state/employees.json');
+}
