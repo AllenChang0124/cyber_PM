@@ -13,12 +13,6 @@ const args = parseArgs();
 const collectionsPath = path.join(root, 'state/collections.json');
 const errors = [];
 
-function shorten(value, maxLength = 80) {
-  const text = String(value || '').replace(/\s+/g, ' ').trim();
-  if (text.length <= maxLength) return text;
-  return `${text.slice(0, maxLength - 3)}...`;
-}
-
 const collections = pathExists(collectionsPath)
   ? readJson(collectionsPath)
   : { schema_version: 'pm-collections.v1', updated_at: '', items: [] };
@@ -60,12 +54,11 @@ if (args.json) {
     results: rows
   }, null, 2));
 } else {
-  printTable(rows.map((row) => ({ ...row, summary: shorten(row.summary) })), [
+  printTable(rows, [
     { key: 'employee', header: 'employee' },
     { key: 'task_id', header: 'task_id' },
     { key: 'status', header: 'status' },
     { key: 'model_used', header: 'model_used' },
-    { key: 'summary', header: 'summary' },
     { key: 'collected_at', header: 'collected_at' },
     { key: 'result_path', header: 'result_path' }
   ]);
