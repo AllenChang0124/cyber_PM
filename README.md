@@ -1,6 +1,14 @@
 # cyber_PM
 
-这是 Codex PM 工作区的最小闭环实现。它不直接调用模型 API，也不启动后台 daemon，只通过员工 repo 暴露的 JSON Bridge 完成发现员工、派发任务、读取状态和收集结果。
+这是 Codex PM 工作区的最小闭环实现。它不直接调用模型 API，也不写用户 home 配置，只通过员工 repo 暴露的 JSON Bridge 协调多个持久化员工。
+
+项目目标已经调整为：
+
+- 部署哪些员工，由用户手动选择和维护。
+- PM 只调度已经部署、已启用、可发现的员工。
+- PM 接到用户任务后，目标态应自动完成任务建包、员工选择、派发和触发。
+- 员工仍是持久化 repo 个体，拥有自己的身份、模型 profile、skills、inbox/outbox、state、logs。
+- 后台 watcher/daemon 不是默认目标；自动触发应先通过明确的 PM 命令实现，便于观察和调试。
 
 ## 1. 工作模式
 
@@ -12,7 +20,9 @@ codex/
   cyber_employee/
 ```
 
-`cyber_PM` 是 PM 工作区。`cyber_employee` 是员工母体模板。PM 会把员工 clone 放在 `cyber_PM/employees/` 下，但这些 clone 不进入 PM 仓库提交。
+`cyber_PM` 是 PM 工作区。`cyber_employee` 是员工母体模板。你手动决定要部署哪些员工，并把员工 clone 放在 `cyber_PM/employees/` 下；这些 clone 不进入 PM 仓库提交。
+
+PM 后续只在这些已部署员工中调度，不负责自动创建无限员工池。
 
 ## 2. 初始化
 
@@ -51,7 +61,7 @@ npm run submit -- --file tasks/drafts/task-0001.json --employee junior-demo
 employees/junior-demo/inbox/tasks/task-0001.json
 ```
 
-同时会打印显式唤醒命令。PM v1 不自动启动 Claude Code。
+当前 `submit` 命令会打印显式唤醒命令。新的目标态是：PM 接到用户任务后，通过后续的 intake/dispatch 命令自动选择员工、派发任务并触发对应员工运行。
 
 ## 4. 查看状态
 
@@ -161,7 +171,7 @@ npm run results -- --json
 
 ## 9. 日常 PM 顺序
 
-推荐日常操作顺序：
+当前已实现的日常操作顺序：
 
 ```bash
 npm run discover
@@ -176,6 +186,14 @@ npm run resolve -- --task <task_id> --employee <employee_alias> --decision accep
 ```
 
 其中 `discover`、`submit`、`collect`、`reconcile`、`resolve` 会写运行态。`status`、`tasks`、`results` 默认只读。
+
+目标态的 PM 入口将收敛为：
+
+```bash
+npm run intake -- --file tasks/drafts/<task_id>.json
+```
+
+预期由 PM 自动完成：选择已部署员工、派发任务、触发员工执行、刷新账本。该自动触发能力尚未在当前版本实现，建议作为下一迭代优先目标。
 
 ## 10. Git 约定
 
