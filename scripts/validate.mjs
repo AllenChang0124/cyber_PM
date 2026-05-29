@@ -14,6 +14,11 @@ import {
   validateResultPackage,
   validateTaskPackage
 } from './lib/protocol.mjs';
+import {
+  LEDGER_SCHEMA,
+  PM_EVENT_SCHEMA,
+  VALID_PM_DECISIONS
+} from './lib/ledger.mjs';
 
 const root = process.cwd();
 const errors = [];
@@ -73,7 +78,7 @@ for (const dir of requiredDirs) {
 }
 
 const packageJson = validateJsonFile('package.json', ['name', 'version', 'private', 'type', 'scripts']);
-for (const scriptName of ['doctor', 'validate', 'setup:demo', 'discover', 'submit', 'status', 'tasks', 'results', 'collect']) {
+for (const scriptName of ['doctor', 'validate', 'setup:demo', 'discover', 'submit', 'status', 'tasks', 'results', 'reconcile', 'resolve', 'collect']) {
   if (!packageJson?.scripts?.[scriptName]) fail(`package.json missing script: ${scriptName}`);
 }
 
@@ -181,6 +186,45 @@ if (pathExists(path.join(root, 'state/collections.json'))) {
       'first_collected_at',
       'last_collected_at'
     ], `state/collections.json items[${index}]`, errors);
+  }
+}
+
+if (pathExists(path.join(root, 'state/task-ledger.json'))) {
+  const ledger = validateJsonFile('state/task-ledger.json', ['schema_version', 'updated_at', 'tasks']);
+  if (ledger?.schema_version !== LEDGER_SCHEMA) fail(`state/task-ledger.json schema_version must be ${LEDGER_SCHEMA}`);
+  if (!Array.isArray(ledger?.tasks)) fail('state/task-ledger.json tasks must be an array');
+  for (const [index, task] of (ledger?.tasks || []).entries()) {
+    requireFields(task, [
+      'schema_version',
+      'key',
+      'task_id',
+      'title',
+      'employee_id',
+      'employee_alias',
+      'task_type',
+      'priority',
+      'lifecycle',
+      'result_status',
+      'pm_status',
+      'next_action',
+      'updated_at'
+    ], `state/task-ledger.json tasks[${index}]`, errors);
+    if (task.schema_version !== 'pm-ledger-task.v1') fail(`state/task-ledger.json tasks[${index}] schema_version must be pm-ledger-task.v1`);
+  }
+}
+
+if (pathExists(path.join(root, 'logs/pm-events.jsonl'))) {
+  const lines = readText(path.join(root, 'logs/pm-events.jsonl')).split(/\r?\n/).filter(Boolean);
+  for (const [index, line] of lines.entries()) {
+    try {
+      const event = JSON.parse(line);
+      requireFields(event, ['schema_version', 'event_id', 'ts', 'type', 'task_id', 'employee_id', 'decision', 'message', 'data'], `logs/pm-events.jsonl line ${index + 1}`, errors);
+      if (event.schema_version !== PM_EVENT_SCHEMA) fail(`logs/pm-events.jsonl line ${index + 1} schema_version must be ${PM_EVENT_SCHEMA}`);
+      if (event.decision && !VALID_PM_DECISIONS.includes(event.decision)) fail(`logs/pm-events.jsonl line ${index + 1} has invalid decision`);
+      if (typeof event.data !== 'object' || event.data === null || Array.isArray(event.data)) fail(`logs/pm-events.jsonl line ${index + 1} data must be an object`);
+    } catch (error) {
+      fail(`logs/pm-events.jsonl line ${index + 1} is not valid JSON: ${error.message}`);
+    }
   }
 }
 

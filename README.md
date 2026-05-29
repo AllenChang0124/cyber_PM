@@ -73,7 +73,21 @@ npm run status -- --refresh
 npm run tasks
 ```
 
-该命令汇总草稿、派工记录、员工 inbox/outbox 和 PM 结果索引，输出任务生命周期：
+该命令优先读取 `state/task-ledger.json`。如果账本还不存在，会临时 live 计算草稿、派工记录、员工 inbox/outbox 和 PM 结果索引。
+
+刷新 PM 账本：
+
+```bash
+npm run reconcile
+```
+
+输出机器可读任务视图：
+
+```bash
+npm run tasks -- --json
+```
+
+任务生命周期：
 
 - `draft`：只有草稿，未提交。
 - `submitted`：已经派工，但还没有收集结果。
@@ -82,7 +96,37 @@ npm run tasks
 - `completed`：PM 已收集结果，且结果状态为 `completed`。
 - `failed`：PM 已收集结果，且结果状态为 `failed` 或 `blocked`。
 
-## 6. 收集结果
+PM 验收状态：
+
+- `review-pending`：员工已有结果，等待 PM 验收。
+- `accepted`：PM 已验收通过。
+- `needs-rework`：PM 要求返工，但不会自动创建返工任务。
+- `blocked`：PM 标记阻塞。
+- `canceled`：PM 取消该任务。
+
+## 6. PM 验收决策
+
+员工结果 `completed` 不等于 PM 验收通过。收集结果后，按以下流程处理：
+
+```bash
+npm run collect
+npm run reconcile
+npm run tasks
+npm run resolve -- --task task-0001 --employee junior-demo --decision accepted --note "验收通过"
+```
+
+支持的 `decision`：
+
+```text
+accepted
+needs-rework
+blocked
+canceled
+```
+
+PM 决策会写入 `state/task-ledger.json`，并追加 `logs/pm-events.jsonl`。两者都是运行态文件，不提交。
+
+## 7. 收集结果
 
 员工通过 Claude Code 执行任务后，运行：
 
@@ -99,7 +143,7 @@ results/collected/<employee_id>/<task_id>.md
 
 `state/collections.json` 会记录已收集结果和 hash。再次运行 `collect` 时，相同结果不会重复归档；如果员工源结果发生变化，PM 会覆盖归档副本并更新索引。
 
-## 7. 查看结果汇总
+## 8. 查看结果汇总
 
 ```bash
 npm run results
@@ -113,9 +157,9 @@ npm run results -- --status completed
 npm run results -- --json
 ```
 
-`results` 默认只读，适合 PM 快速查看已归档结果、模型、摘要和结果路径。
+`results` 默认只读，适合 PM 快速查看已归档结果、模型和结果路径。默认表格不展示 `summary`；需要完整摘要时使用 `--json`。
 
-## 8. 日常 PM 顺序
+## 9. 日常 PM 顺序
 
 推荐日常操作顺序：
 
@@ -126,12 +170,14 @@ npm run status
 npm run tasks
 npm run collect
 npm run results
+npm run reconcile
 npm run tasks
+npm run resolve -- --task <task_id> --employee <employee_alias> --decision accepted --note "验收通过"
 ```
 
-其中只有 `discover`、`submit`、`collect` 会写运行态。`status`、`tasks`、`results` 默认只读。
+其中 `discover`、`submit`、`collect`、`reconcile`、`resolve` 会写运行态。`status`、`tasks`、`results` 默认只读。
 
-## 9. Git 约定
+## 10. Git 约定
 
 PM 仓库只提交框架、脚本、示例和文档。以下内容是运行时文件，不提交：
 
@@ -143,7 +189,7 @@ PM 仓库只提交框架、脚本、示例和文档。以下内容是运行时�
 - `logs/*`
 - `.env`
 
-## 10. 验收命令
+## 11. 验收命令
 
 ```bash
 npm run doctor
@@ -160,7 +206,10 @@ npm run tasks
 
 ```bash
 npm run collect
+npm run reconcile
 npm run results
+npm run tasks
+npm run resolve -- --task task-0001 --employee junior-demo --decision accepted --note "验收通过"
 npm run tasks
 npm run validate
 ```

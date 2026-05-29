@@ -12,6 +12,8 @@
     "status": "node scripts/status.mjs",
     "tasks": "node scripts/tasks.mjs",
     "results": "node scripts/results.mjs",
+    "reconcile": "node scripts/reconcile.mjs",
+    "resolve": "node scripts/resolve.mjs",
     "collect": "node scripts/collect-results.mjs"
   },
   "engines": {
