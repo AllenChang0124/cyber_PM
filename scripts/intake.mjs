@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import {
   parseArgs,
   pathExists,
@@ -18,12 +18,17 @@ import {
   selectEmployee,
   writeDispatch
 } from './lib/dispatch.mjs';
+import {
+  buildRun,
+  writeRun,
+  writeRunIndex
+} from './lib/runs.mjs';
 
 const root = process.cwd();
 const args = parseArgs();
 
 function usage() {
-  console.error('usage: npm run intake -- --file tasks/drafts/task-0004.json [--employee junior-demo] [--dry-run] [--no-launch] [--force]');
+  console.error('usage: npm run intake -- --file tasks/drafts/task-0004.json [--employee junior-demo] [--dry-run] [--no-launch] [--force] [--interactive] [--background] [--timeout-minutes 60]');
 }
 
 function appendEvent(type, dispatch, message, data = {}) {
@@ -46,6 +51,10 @@ function ensureDispatchWouldNotOverwrite(dispatch) {
   }
 }
 
+function buildWorkerCommand(run) {
+  return `${process.execPath} ${path.join('scripts', 'run-worker.mjs')} --run-id ${run.run_id}`;
+}
+
 if (!args.file) {
   usage();
   process.exit(1);
@@ -55,10 +64,22 @@ try {
   const { task, taskPath } = loadTask(root, args.file);
   const index = discoverEmployees(root, { writeIndex: !args['dry-run'] });
   const employee = selectEmployee(root, index, task, args.employee || '');
+  const interactive = Boolean(args.interactive);
+  const background = Boolean(args.background);
+  if (background && interactive) {
+    throw new Error('--background cannot be combined with --interactive');
+  }
+  if (background && args['no-launch']) {
+    throw new Error('--background cannot be combined with --no-launch');
+  }
   const dispatch = prepareDispatch(root, taskPath, task, employee, {
-    includePrompt: true,
+    autoRun: !interactive,
+    includePrompt: interactive,
     skipPermissions: Boolean(args['skip-permissions'])
   });
+  const run = background ? buildRun(root, dispatch, {
+    timeoutMinutes: args['timeout-minutes']
+  }) : null;
 
   ensureDispatchWouldNotOverwrite(dispatch);
 
@@ -68,6 +89,15 @@ try {
     console.log(`employee task: ${dispatch.employeeTaskRelativePath}`);
     console.log(`submitted record: ${dispatch.submittedRelativePath}`);
     console.log(`profile: ${dispatch.profile}`);
+    console.log(`mode: ${background ? 'background' : (interactive ? 'interactive' : 'auto-run')}`);
+    if (background) {
+      console.log(`run id: ${run.run_id}`);
+      console.log(`run file: state/runs/${run.run_id}.json`);
+      console.log(`run log: ${run.log_path}`);
+      console.log(`timeout minutes: ${run.timeout_minutes}`);
+      console.log('worker command:');
+      console.log(buildWorkerCommand(run));
+    }
     console.log('launch command:');
     console.log(dispatch.launchCommand);
     console.log('dry-run only; no files were written and employee was not launched');
@@ -80,7 +110,8 @@ try {
   appendEvent('employee_selected', dispatch, `selected ${employee.alias}`, {
     employee_alias: employee.alias,
     employee_path: employee.path,
-    profile: dispatch.profile
+    profile: dispatch.profile,
+    mode: background ? 'background' : (interactive ? 'interactive' : 'auto-run')
   });
 
   writeDispatch(root, dispatch, { force: Boolean(args.force) });
@@ -92,14 +123,40 @@ try {
   writeLedger(root, reconcileLedger(root));
   console.log(`intake submitted ${task.task_id} to ${employee.alias}`);
   console.log(`employee task: ${dispatch.employeeTaskRelativePath}`);
+  console.log(`mode: ${background ? 'background' : (interactive ? 'interactive' : 'auto-run')}`);
 
   if (args['no-launch']) {
     console.log('no-launch requested; employee was not launched');
     process.exit(0);
   }
 
+  if (background) {
+    writeRun(root, run);
+    writeRunIndex(root);
+    appendEvent('run_created', dispatch, `created background run ${run.run_id}`, {
+      run_id: run.run_id,
+      run_file: `state/runs/${run.run_id}.json`,
+      log_path: run.log_path,
+      timeout_minutes: run.timeout_minutes
+    });
+
+    const worker = spawn(process.execPath, ['scripts/run-worker.mjs', '--run-id', run.run_id], {
+      cwd: root,
+      detached: true,
+      stdio: 'ignore',
+      shell: process.platform === 'win32'
+    });
+    worker.unref();
+    console.log(`background run: ${run.run_id}`);
+    console.log(`log: ${run.log_path}`);
+    console.log(`worker pid: ${worker.pid}`);
+    console.log('use npm run runs to inspect run status');
+    process.exit(0);
+  }
+
   appendEvent('employee_launched', dispatch, `launching ${employee.alias}`, {
-    launch_command: dispatch.launchCommand
+    launch_command: dispatch.launchCommand,
+    mode: interactive ? 'interactive' : 'auto-run'
   });
 
   console.log('launch command:');

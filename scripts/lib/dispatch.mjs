@@ -12,6 +12,9 @@ import {
   loadEmployeeConfig,
   validateTaskPackage
 } from './protocol.mjs';
+import {
+  activeRunForEmployee
+} from './runs.mjs';
 
 export function loadTask(root, taskFile) {
   const taskPath = path.resolve(root, taskFile);
@@ -36,10 +39,12 @@ function employeeConfigOrder(root) {
   return byPath;
 }
 
-function employeeFailureReason(employee, task) {
+function employeeFailureReason(root, employee, task) {
   if (!employee.enabled) return 'employee is disabled';
   if (!employee.discovered) return 'employee repo is not discovered';
   if (!employee.paths) return 'employee protocol paths are missing';
+  const activeRun = employee.employee_id ? activeRunForEmployee(root, employee.employee_id) : null;
+  if (activeRun) return `active run ${activeRun.run_id} is ${activeRun.status}`;
   if (task.task_type && !employee.accepts_task_types.includes(task.task_type)) {
     return `does not accept task_type ${task.task_type}`;
   }
@@ -57,7 +62,7 @@ export function selectEmployee(root, index, task, selector = '') {
   if (selector) {
     const employee = employees.find((item) => item.alias === selector || item.employee_id === selector);
     if (!employee) throw new Error(`employee not found: ${selector}`);
-    const reason = employeeFailureReason(employee, task);
+    const reason = employeeFailureReason(root, employee, task);
     if (reason) throw new Error(`${employee.alias || employee.employee_id} cannot take task: ${reason}`);
     return employee;
   }
@@ -65,7 +70,7 @@ export function selectEmployee(root, index, task, selector = '') {
   const rejected = [];
   const candidates = [];
   for (const employee of employees) {
-    const reason = employeeFailureReason(employee, task);
+    const reason = employeeFailureReason(root, employee, task);
     if (reason) {
       rejected.push(`${employee.alias || employee.path}: ${reason}`);
     } else {
@@ -102,6 +107,7 @@ export function buildInitialPrompt(taskId) {
 export function buildLaunchArgs(task, employee, options = {}) {
   const profile = task.model_hint || employee.default_model_profile;
   const args = ['run', 'claude', '--', '--profile', profile, '--task', task.task_id];
+  if (options.autoRun) args.push('--auto-run');
   if (options.skipPermissions) args.push('--skip-permissions');
   if (options.prompt) args.push(options.prompt);
   return { profile, args };
@@ -120,11 +126,14 @@ export function prepareDispatch(root, taskPath, task, employee, options = {}) {
     `${safeFileName(employee.employee_id)}__${safeFileName(task.task_id)}.json`
   );
   const prompt = buildInitialPrompt(task.task_id);
+  const autoRun = Boolean(options.autoRun);
   const { profile, args: launchArgs } = buildLaunchArgs(task, employee, {
-    prompt: options.includePrompt ? prompt : '',
+    autoRun,
+    prompt: options.includePrompt && !autoRun ? prompt : '',
     skipPermissions: options.skipPermissions
   });
   const wakeArgs = buildLaunchArgs(task, employee, {
+    autoRun,
     skipPermissions: options.skipPermissions
   }).args;
 

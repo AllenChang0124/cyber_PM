@@ -8,6 +8,8 @@
 - PM 只调度已部署、已启用、可发现的员工。
 - PM 接到用户任务后，应自动完成任务建包、员工选择、派发和触发。
 - 员工是持久化 repo 个体，不是一次性 subagent。
+- 当前默认调度路径已切换为非交互 `auto-run`，不再依赖用户接管员工会话。
+- 多员工并行使用显式 `intake --background`，前台 `intake` 继续用于单任务确认和调试。
 
 ## 工作边界
 
@@ -27,6 +29,7 @@ npm run discover
 npm run intake -- --file tasks/drafts/task-0001.json
 npm run submit -- --file tasks/drafts/task-0001.json --employee junior-demo
 npm run status
+npm run runs
 npm run collect
 npm run reconcile
 npm run tasks
@@ -38,5 +41,8 @@ npm run results
 - Senior 员工适合复杂、开放度较高、需要判断的实现任务。
 - Junior 员工适合边界清晰、验收标准明确、可量化的任务。
 - 接到用户任务后，优先使用 `npm run intake -- --file ...` 自动选择、派发并触发员工。
+- `intake` 默认使用员工 `--auto-run` 非交互模式；只有调试时才加 `--interactive`。
+- 需要多个员工并行时，使用 `npm run intake -- --file ... --background`，并用 `npm run runs` 观察运行状态。
 - 只有调试或特殊分配时，才使用 `npm run submit -- --employee ...` 拆开派发。
+- 员工结果收集后，先看 `pm_status`。`review-pending` 表示等待 PM 验收，`needs-rework` 表示验收失败并应查看返工草稿。
 - JSON 是机器协议权威来源；Markdown 仅作为人类可读附件。

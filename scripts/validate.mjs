@@ -19,6 +19,11 @@ import {
   PM_EVENT_SCHEMA,
   VALID_PM_DECISIONS
 } from './lib/ledger.mjs';
+import {
+  RUN_INDEX_SCHEMA,
+  RUN_SCHEMA,
+  RUN_STATUSES
+} from './lib/runs.mjs';
 
 const root = process.cwd();
 const errors = [];
@@ -78,7 +83,7 @@ for (const dir of requiredDirs) {
 }
 
 const packageJson = validateJsonFile('package.json', ['name', 'version', 'private', 'type', 'scripts']);
-for (const scriptName of ['doctor', 'validate', 'setup:demo', 'discover', 'intake', 'submit', 'status', 'tasks', 'results', 'reconcile', 'resolve', 'collect']) {
+for (const scriptName of ['doctor', 'validate', 'setup:demo', 'discover', 'intake', 'submit', 'status', 'tasks', 'runs', 'results', 'reconcile', 'resolve', 'collect', 'run-worker']) {
   if (!packageJson?.scripts?.[scriptName]) fail(`package.json missing script: ${scriptName}`);
 }
 
@@ -210,6 +215,47 @@ if (pathExists(path.join(root, 'state/task-ledger.json'))) {
       'updated_at'
     ], `state/task-ledger.json tasks[${index}]`, errors);
     if (task.schema_version !== 'pm-ledger-task.v1') fail(`state/task-ledger.json tasks[${index}] schema_version must be pm-ledger-task.v1`);
+  }
+}
+
+if (pathExists(path.join(root, 'state/runs.json'))) {
+  const runIndex = validateJsonFile('state/runs.json', ['schema_version', 'updated_at', 'runs']);
+  if (runIndex?.schema_version !== RUN_INDEX_SCHEMA) fail(`state/runs.json schema_version must be ${RUN_INDEX_SCHEMA}`);
+  if (!Array.isArray(runIndex?.runs)) fail('state/runs.json runs must be an array');
+}
+
+const runsDir = path.join(root, 'state/runs');
+if (pathExists(runsDir)) {
+  for (const entry of fs.readdirSync(runsDir)) {
+    if (!entry.endsWith('.json')) continue;
+    const relativePath = `state/runs/${entry}`;
+    const run = validateJsonFile(relativePath, [
+      'schema_version',
+      'run_id',
+      'task_id',
+      'employee_id',
+      'employee_alias',
+      'status',
+      'pid',
+      'started_at',
+      'ended_at',
+      'exit_code',
+      'timeout_minutes',
+      'log_path',
+      'submitted_path',
+      'result_path'
+    ]);
+    if (run?.schema_version !== RUN_SCHEMA) fail(`${relativePath} schema_version must be ${RUN_SCHEMA}`);
+    if (run?.status && !RUN_STATUSES.includes(run.status)) fail(`${relativePath} has invalid status`);
+    if (run?.log_path && (!isSafeRelativePath(run.log_path) || !run.log_path.startsWith('logs/runs/'))) {
+      fail(`${relativePath} log_path must be under logs/runs/`);
+    }
+    if (run?.submitted_path && (!isSafeRelativePath(run.submitted_path) || !run.submitted_path.startsWith('tasks/submitted/'))) {
+      fail(`${relativePath} submitted_path must be under tasks/submitted/`);
+    }
+    if (run?.result_path && (!isSafeRelativePath(run.result_path) || !run.result_path.startsWith('results/collected/'))) {
+      fail(`${relativePath} result_path must be under results/collected/`);
+    }
   }
 }
 
