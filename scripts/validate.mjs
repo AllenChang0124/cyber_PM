@@ -63,6 +63,8 @@ const requiredFiles = [
   'README.md',
   'AGENTS.md',
   'config/employees.json',
+  'plans/PLAN.example.json',
+  'plans/PLAN.example.md',
   'tasks/drafts/task-0001.example.json'
 ];
 for (const file of requiredFiles) {
@@ -71,6 +73,7 @@ for (const file of requiredFiles) {
 
 const requiredDirs = [
   'employees',
+  'plans',
   'tasks/drafts',
   'tasks/submitted',
   'results/collected',
@@ -86,6 +89,46 @@ const packageJson = validateJsonFile('package.json', ['name', 'version', 'privat
 for (const scriptName of ['doctor', 'validate', 'setup:demo', 'discover', 'draft', 'intake', 'submit', 'status', 'tasks', 'runs', 'results', 'reconcile', 'resolve', 'collect', 'sweep', 'run-worker']) {
   if (!packageJson?.scripts?.[scriptName]) fail(`package.json missing script: ${scriptName}`);
 }
+
+function validatePlan(plan, label) {
+  requireFields(plan, [
+    'schema_version',
+    'plan_id',
+    'created_at',
+    'updated_at',
+    'goal',
+    'status',
+    'strategy',
+    'tasks',
+    'final_summary'
+  ], label, errors);
+  if (plan?.schema_version !== 'pm-plan.v1') fail(`${label} schema_version must be pm-plan.v1`);
+  if (plan?.strategy && (typeof plan.strategy !== 'object' || Array.isArray(plan.strategy))) fail(`${label} strategy must be an object`);
+  if (!Array.isArray(plan?.tasks)) {
+    fail(`${label} tasks must be an array`);
+    return;
+  }
+  for (const [index, task] of plan.tasks.entries()) {
+    requireFields(task, [
+      'task_id',
+      'title',
+      'task_type',
+      'assignee_level',
+      'employee_hint',
+      'depends_on',
+      'draft_path',
+      'result_path',
+      'pm_status'
+    ], `${label} tasks[${index}]`, errors);
+    if (task.depends_on && !Array.isArray(task.depends_on)) fail(`${label} tasks[${index}].depends_on must be an array`);
+    for (const field of ['draft_path', 'result_path']) {
+      if (task[field] && !isSafeRelativePath(task[field])) fail(`${label} tasks[${index}].${field} must be project-relative`);
+    }
+  }
+}
+
+const examplePlan = validateJsonFile('plans/PLAN.example.json', []);
+if (examplePlan) validatePlan(examplePlan, 'plans/PLAN.example.json');
 
 const secretPatterns = [
   { name: 'github token', pattern: /ghp_[A-Za-z0-9_]{20,}/ },
@@ -304,6 +347,7 @@ if (git.status === 0) {
     if (/^employees\/.+/.test(trackedPath) && trackedPath !== 'employees/.gitkeep') fail(`${trackedPath} must not be tracked by git`);
     if (/^state\/.+/.test(trackedPath) && trackedPath !== 'state/.gitkeep') fail(`${trackedPath} must not be tracked by git`);
     if (/^logs\/.+/.test(trackedPath) && trackedPath !== 'logs/.gitkeep') fail(`${trackedPath} must not be tracked by git`);
+    if (/^plans\/.+\.(json|md)$/.test(trackedPath) && !trackedPath.endsWith('.example.json') && !trackedPath.endsWith('.example.md')) fail(`${trackedPath} must not be tracked by git`);
     if (/^results\/collected\/.+/.test(trackedPath) && trackedPath !== 'results/collected/.gitkeep') fail(`${trackedPath} must not be tracked by git`);
     if (/^tasks\/submitted\/.+/.test(trackedPath) && trackedPath !== 'tasks/submitted/.gitkeep') fail(`${trackedPath} must not be tracked by git`);
     if (/^tasks\/drafts\/.+\.json$/.test(trackedPath) && !trackedPath.endsWith('.example.json')) fail(`${trackedPath} must not be tracked by git`);

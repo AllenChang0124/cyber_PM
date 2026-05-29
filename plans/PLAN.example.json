@@ -1,0 +1,42 @@
+{
+  "schema_version": "pm-plan.v1",
+  "plan_id": "plan-0001",
+  "created_at": "2026-05-29T00:00:00.000Z",
+  "updated_at": "2026-05-29T00:00:00.000Z",
+  "goal": "示例：让 Codex PM 拆解一个用户自然语言需求，并协调多个 employee 完成。",
+  "status": "draft",
+  "strategy": {
+    "summary": "先把开放问题交给 senior 做判断，再把边界清晰的执行任务交给 junior。无依赖任务可以并行。",
+    "parallelism": "independent-tasks",
+    "risks": [
+      "员工 MCP 或外部工具未配置时，调研类任务可能只能做离线分析。"
+    ]
+  },
+  "tasks": [
+    {
+      "task_id": "task-0001",
+      "title": "示例 senior 调研任务",
+      "task_type": "research",
+      "assignee_level": "senior",
+      "employee_hint": "senior-demo",
+      "depends_on": [],
+      "draft_path": "tasks/drafts/task-0001.json",
+      "result_path": "",
+      "pm_status": "draft"
+    },
+    {
+      "task_id": "task-0002",
+      "title": "示例 junior 执行任务",
+      "task_type": "documentation",
+      "assignee_level": "junior",
+      "employee_hint": "junior-demo",
+      "depends_on": [
+        "task-0001"
+      ],
+      "draft_path": "tasks/drafts/task-0002.json",
+      "result_path": "",
+      "pm_status": "draft"
+    }
+  ],
+  "final_summary": ""
+}

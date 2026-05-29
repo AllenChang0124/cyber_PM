@@ -10,6 +10,7 @@
 - 员工是持久化 repo 个体，不是一次性 subagent。
 - 当前默认调度路径已切换为非交互 `auto-run`，不再依赖用户接管员工会话。
 - 多员工并行使用显式 `intake --background`，前台 `intake` 继续用于单任务确认和调试。
+- Codex 自带 `/plan` 只用于会话内思考和与用户对齐；确认后的 PM 拆解必须落盘到 `plans/<plan_id>.json`。
 
 ## 工作边界
 
@@ -19,6 +20,20 @@
 - 不自动创建员工池；员工部署由用户控制。
 - 后台 watcher 或 daemon 不是默认方案；优先通过明确的 PM 命令触发调度，便于观察和调试。
 - 员工模板共性修改必须回到 `../cyber_employee` 提交并 push；`employees/*` 只同步模板，不直接把模板改动从员工 clone 推上游。
+
+## 自然语言主流程
+
+当用户用自然语言提出复杂需求时，按以下顺序工作：
+
+1. 先在会话中拆解目标、风险、验收口径和员工分配，必要时用 Codex `/plan` 与用户对齐。
+2. 将确认后的拆解写入 `plans/<plan_id>.json`，并可补充 `plans/<plan_id>.md` 作为人类可读说明。
+3. 根据 plan 中的 `tasks[]` 生成 `tasks/drafts/*.json`。
+4. 无依赖任务使用 `npm run intake -- --file ... --background` 并行派发；有依赖任务按 `depends_on` 顺序推进。
+5. 使用 `npm run runs`、`npm run tasks`、`npm run results` 观察执行状态。
+6. 对 `review-pending` 结果做 PM 复核；需要返工时继续生成或使用返工草稿。
+7. 每次状态变化后同步更新 plan 的任务 `pm_status`、`result_path` 和 `final_summary`。
+
+默认拆解规则：清晰量化任务优先 junior；开放复杂、需要判断的任务优先 senior；无依赖任务可并行。
 
 ## 常用命令
 

@@ -15,6 +15,12 @@ employees/*
 logs/*
 !logs/.gitkeep
 
+plans/*.json
+plans/*.md
+!plans/*.example.json
+!plans/*.example.md
+!plans/.gitkeep
+
 results/collected/*
 !results/collected/.gitkeep
 

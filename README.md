@@ -24,6 +24,8 @@ codex/
 
 PM 后续只在这些已部署员工中调度，不负责自动创建无限员工池。
 
+Codex 自带 `/plan` 适合会话内思考和与你对齐方案；`cyber_PM/plans/` 是项目级持久化计划记录，用于重启后继续推进一次复杂需求。确认后的 PM 拆解应写入 `plans/<plan_id>.json`，再生成任务草稿并调度员工。
+
 模板维护准则：
 
 - 员工模板共性修改只在 sibling repo `../cyber_employee` 中完成、提交并 push 到 GitHub。
@@ -48,7 +50,40 @@ npm run discover
 - `setup:demo` 创建 `employees/senior-demo` 与 `employees/junior-demo`。
 - `discover` 在 `state/employees.json` 生成员工索引。
 
-## 3. 起草任务
+## 3. PM 计划层
+
+复杂自然语言需求应先落成 PM plan artifact，再进入任务草稿和派发流程：
+
+```text
+natural language -> PM plan -> draft -> intake --background -> runs/tasks/results -> resolve -> update plan -> final summary
+```
+
+示例文件：
+
+```text
+plans/PLAN.example.json
+plans/PLAN.example.md
+```
+
+最小 plan 字段：
+
+- `plan_id`：一次用户需求的唯一编号。
+- `goal`：用户原始目标或 PM 整理后的目标。
+- `status`：`draft`、`dispatching`、`running`、`reviewing`、`needs-rework`、`completed`、`blocked`、`canceled`。
+- `strategy`：PM 拆解思路、并行策略和风险判断。
+- `tasks[]`：子任务列表，连接 `task_id`、员工分配、依赖、draft、result 和 PM 状态。
+- `final_summary`：完成后给用户的最终汇总，未完成时为空。
+
+Codex PM 收到复杂需求后，应先在会话中规划并与用户对齐，再把确认后的拆解写入 `plans/<plan_id>.json`。运行态 `plans/*.json` 和 `plans/*.md` 默认不提交，只有 `.example` 文件进入 git。
+
+默认拆解规则：
+
+- 清晰量化、验收标准明确的任务优先交给 junior。
+- 开放复杂、需要判断的任务优先交给 senior。
+- 无依赖任务可并行派发；有依赖任务按 `depends_on` 顺序推进。
+- 每次 `runs/tasks/results/resolve` 后，同步更新对应 plan。
+
+## 4. 起草任务
 
 PM 可以先把用户需求整理成合法的 `employee-task.v1` 草稿：
 
@@ -77,7 +112,7 @@ npm run intake -- --file tasks/drafts/task-0010.json --dry-run
 cp tasks/drafts/task-0001.example.json tasks/drafts/task-0001.json
 ```
 
-## 4. 手动派发任务
+## 5. 手动派发任务
 
 提交给 junior 员工：
 
@@ -93,7 +128,7 @@ employees/junior-demo/inbox/tasks/task-0001.json
 
 `submit` 命令保留为手动调试路径，会打印显式唤醒命令。日常 PM 流程优先使用 `intake` 自动选择员工、派发任务并触发对应员工运行。
 
-## 5. 自动接收并调度任务
+## 6. 自动接收并调度任务
 
 PM 自动调度入口：
 
@@ -141,7 +176,7 @@ npm run intake -- --file tasks/drafts/<task_id>.json --background
 - 员工不能已有 active run；active run 包括 `starting` 和 `running`。
 - 多个候选并列时，按 `config/employees.json` 注册顺序选择。
 
-## 6. 查看状态
+## 7. 查看状态
 
 ```bash
 npm run status
@@ -155,7 +190,7 @@ npm run status
 npm run status -- --refresh
 ```
 
-## 7. 查看任务台账
+## 8. 查看任务台账
 
 ```bash
 npm run tasks
@@ -163,7 +198,7 @@ npm run tasks
 
 该命令优先读取 `state/task-ledger.json`。如果账本还不存在，会临时 live 计算草稿、派工记录、员工 inbox/outbox 和 PM 结果索引。
 
-## 8. 查看后台运行
+## 9. 查看后台运行
 
 ```bash
 npm run runs
@@ -219,7 +254,7 @@ PM 验收状态：
 - `blocked`：PM 标记阻塞。
 - `canceled`：PM 取消该任务。
 
-## 9. PM 验收决策
+## 10. PM 验收决策
 
 员工结果 `completed` 不等于 PM 验收通过。收集结果后，按以下流程处理：
 
@@ -243,7 +278,7 @@ PM 决策会写入 `state/task-ledger.json`，并追加 `logs/pm-events.jsonl`�
 
 如果结果中存在 `verification[].passed=false`，`reconcile` 会自动把任务标记为 `needs-rework`，并在 `tasks/drafts/` 生成返工任务草稿。返工草稿不会自动派发，仍需通过 `intake` 进入下一轮。
 
-## 10. 收集结果
+## 11. 收集结果
 
 员工通过 Claude Code 执行任务后，运行：
 
@@ -260,7 +295,7 @@ results/collected/<employee_id>/<task_id>.md
 
 `state/collections.json` 会记录已收集结果和 hash。再次运行 `collect` 时，相同结果不会重复归档；如果员工源结果发生变化，PM 会覆盖归档副本并更新索引。
 
-## 11. 查看结果汇总
+## 12. 查看结果汇总
 
 ```bash
 npm run results
@@ -276,12 +311,14 @@ npm run results -- --json
 
 `results` 默认只读，适合 PM 快速查看已归档结果、模型和结果路径。默认表格不展示 `summary`；需要完整摘要时使用 `--json`。
 
-## 12. 日常 PM 顺序
+## 13. 日常 PM 顺序
 
 推荐主流程：
 
 ```bash
 npm run discover
+npm run validate
+# 用 Codex 会话规划，并把确认后的拆解写入 plans/<plan_id>.json
 npm run draft -- --task-id <task_id> --title "..." --body "..." --type documentation --level junior
 npm run intake -- --file tasks/drafts/<task_id>.json --background
 npm run runs
@@ -324,11 +361,12 @@ npm run resolve -- --task <task_id> --employee <employee_alias> --decision accep
 
 `intake --background --timeout-minutes <n>` 可设置后台 run 超时；默认 60 分钟，`0` 表示不设置超时。
 
-## 13. Git 约定
+## 14. Git 约定
 
 PM 仓库只提交框架、脚本、示例和文档。以下内容是运行时文件，不提交：
 
 - `employees/*`
+- `plans/*.json` 和 `plans/*.md`，但 `.example` 文件除外
 - `tasks/drafts/*.json`
 - `tasks/submitted/*`
 - `results/collected/*`
@@ -355,13 +393,14 @@ cd ../..
 npm run discover
 ```
 
-## 14. 验收命令
+## 15. 验收命令
 
 ```bash
 npm run doctor
 npm run validate
 npm run setup:demo
 npm run discover
+# 可复制 example 验证运行态 plan ignored：cp plans/PLAN.example.json plans/plan-001.json
 npm run draft -- --task-id task-0010 --title "验证 PM draft" --body "生成一个最小文档任务" --type documentation --level junior
 npm run intake -- --file tasks/drafts/task-0010.json --dry-run
 npm run intake -- --file tasks/drafts/task-0010.json --dry-run --background
