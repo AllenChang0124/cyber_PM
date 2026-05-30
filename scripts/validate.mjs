@@ -253,11 +253,16 @@ if (pathExists(path.join(root, 'state/task-ledger.json'))) {
       'priority',
       'lifecycle',
       'result_status',
+      'pm_review_failed',
+      'pm_review_issues',
+      'pm_review_checked_at',
       'pm_status',
       'next_action',
       'updated_at'
     ], `state/task-ledger.json tasks[${index}]`, errors);
     if (task.schema_version !== 'pm-ledger-task.v1') fail(`state/task-ledger.json tasks[${index}] schema_version must be pm-ledger-task.v1`);
+    if (typeof task.pm_review_failed !== 'boolean') fail(`state/task-ledger.json tasks[${index}] pm_review_failed must be boolean`);
+    if (!Array.isArray(task.pm_review_issues)) fail(`state/task-ledger.json tasks[${index}] pm_review_issues must be an array`);
   }
 }
 

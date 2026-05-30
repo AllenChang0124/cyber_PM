@@ -59,6 +59,18 @@ export const STATUS_FIELDS = [
   'updated_at'
 ];
 
+export const PRIORITIES = ['low', 'normal', 'high'];
+export const TASK_TYPES = ['implementation', 'testing', 'documentation', 'research'];
+export const ASSIGNEE_LEVELS = ['', 'junior', 'senior'];
+export const RESULT_STATUSES = ['completed', 'failed', 'blocked'];
+export const EMPLOYEE_STATES = ['idle', 'working'];
+
+function validateEnum(value, allowed, label, errors) {
+  if (!allowed.includes(value)) {
+    errors.push(`${label} must be one of: ${allowed.map((item) => item || '(empty)').join(', ')}`);
+  }
+}
+
 export function requireFields(object, fields, label, errors) {
   if (!object || typeof object !== 'object' || Array.isArray(object)) {
     errors.push(`${label} must be an object`);
@@ -73,6 +85,11 @@ export function validateTaskPackage(task, label, errors) {
   requireFields(task, TASK_FIELDS, label, errors);
   if (task?.schema_version && task.schema_version !== 'employee-task.v1') {
     errors.push(`${label} schema_version must be employee-task.v1`);
+  }
+  if (task?.priority) validateEnum(task.priority, PRIORITIES, `${label} priority`, errors);
+  if (task?.task_type) validateEnum(task.task_type, TASK_TYPES, `${label} task_type`, errors);
+  if (typeof task?.assignee_level === 'string') {
+    validateEnum(task.assignee_level, ASSIGNEE_LEVELS, `${label} assignee_level`, errors);
   }
   requireFields(task?.input, ['title', 'body_md', 'attachments'], `${label} input`, errors);
   requireFields(task?.constraints, ['allowed_paths', 'deadline_at'], `${label} constraints`, errors);
@@ -92,6 +109,7 @@ export function validateResultPackage(result, label, errors) {
   if (result?.schema_version && result.schema_version !== 'employee-result.v1') {
     errors.push(`${label} schema_version must be employee-result.v1`);
   }
+  if (result?.status) validateEnum(result.status, RESULT_STATUSES, `${label} status`, errors);
   for (const field of ['changes', 'verification', 'artifacts', 'notes']) {
     if (result?.[field] && !Array.isArray(result[field])) {
       errors.push(`${label} ${field} must be an array`);
@@ -117,6 +135,7 @@ export function validateStatus(status, label, errors) {
   if (status?.schema_version && status.schema_version !== 'employee-status.v1') {
     errors.push(`${label} schema_version must be employee-status.v1`);
   }
+  if (status?.state) validateEnum(status.state, EMPLOYEE_STATES, `${label} state`, errors);
 }
 
 export function loadEmployeeConfig(root) {

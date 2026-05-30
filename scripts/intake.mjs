@@ -23,6 +23,9 @@ import {
   writeRun,
   writeRunIndex
 } from './lib/runs.mjs';
+import {
+  withLock
+} from './lib/lock.mjs';
 
 const root = process.cwd();
 const args = parseArgs();
@@ -55,12 +58,19 @@ function buildWorkerCommand(run) {
   return `${process.execPath} ${path.join('scripts', 'run-worker.mjs')} --run-id ${run.run_id}`;
 }
 
+function intakeMode() {
+  if (args.background) return 'background';
+  if (args.interactive) return 'interactive';
+  if (args['no-launch']) return 'no-launch';
+  return 'auto-run';
+}
+
 if (!args.file) {
   usage();
   process.exit(1);
 }
 
-try {
+function runIntake() {
   const { task, taskPath } = loadTask(root, args.file);
   const index = discoverEmployees(root, { writeIndex: !args['dry-run'] });
   const employee = selectEmployee(root, index, task, args.employee || '');
@@ -101,7 +111,7 @@ try {
     console.log('launch command:');
     console.log(dispatch.launchCommand);
     console.log('dry-run only; no files were written and employee was not launched');
-    process.exit(0);
+    return 0;
   }
 
   appendEvent('intake_started', dispatch, `intake started for ${task.task_id}`, {
@@ -127,7 +137,7 @@ try {
 
   if (args['no-launch']) {
     console.log('no-launch requested; employee was not launched');
-    process.exit(0);
+    return 0;
   }
 
   if (background) {
@@ -151,7 +161,7 @@ try {
     console.log(`log: ${run.log_path}`);
     console.log(`worker pid: ${worker.pid}`);
     console.log('use npm run runs to inspect run status');
-    process.exit(0);
+    return 0;
   }
 
   appendEvent('employee_launched', dispatch, `launching ${employee.alias}`, {
@@ -177,11 +187,22 @@ try {
   if (result.status !== 0) {
     console.error(`error - employee exited with status ${result.status}`);
     console.error(`check employee logs under ${employee.path}/logs`);
-    process.exit(result.status || 1);
+    throw new Error(`employee exited with status ${result.status}`);
   }
 
   runChecked('npm', ['run', 'collect'], { cwd: root });
   runChecked('npm', ['run', 'reconcile'], { cwd: root });
+  return 0;
+}
+
+try {
+  const code = args['dry-run']
+    ? runIntake()
+    : withLock(root, 'intake', {
+      task_file: args.file,
+      mode: intakeMode()
+    }, runIntake);
+  process.exit(code || 0);
 } catch (error) {
   console.error(`error - ${error.message}`);
   process.exit(1);

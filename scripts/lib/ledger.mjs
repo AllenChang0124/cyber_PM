@@ -1,20 +1,20 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import {
   ensureDir,
   nowIso,
   parseArgs,
   pathExists,
   readJson,
-  readText,
   relativeFrom,
   safeFileName,
-  writeJson,
-  writeText
+  writeJson
 } from './project.mjs';
 import {
   discoverEmployees,
   employeeProtocolPath,
+  validateResultPackage,
   validateTaskPackage
 } from './protocol.mjs';
 
@@ -62,22 +62,97 @@ export function appendPmEvent(root, event) {
     ts: nowIso(),
     ...event
   });
-  const existing = pathExists(eventsPath) ? readText(eventsPath) : '';
-  writeText(eventsPath, `${existing}${line}\n`);
+  fs.appendFileSync(eventsPath, `${line}\n`);
 }
 
 function ledgerKey(employeeId, taskId) {
   return `${employeeId || 'unassigned'}__${taskId}`;
 }
 
-function failedVerificationItems(result) {
-  if (!Array.isArray(result?.verification)) return [];
-  return result.verification
-    .filter((item) => item && item.passed === false)
-    .map((item) => ({
-      criterion: String(item.criterion || item.name || item.description || '未命名验收项'),
-      note: String(item.note || item.detail || item.message || '')
-    }));
+function verificationCriterion(item, fallback = '未命名验收项') {
+  if (typeof item === 'string') return item;
+  if (!item || typeof item !== 'object') return fallback;
+  return String(item.criterion || item.name || item.description || fallback);
+}
+
+function issue(criterion, note) {
+  return {
+    criterion: String(criterion || '未命名验收项'),
+    note: String(note || '')
+  };
+}
+
+function firstOutputLine(result) {
+  return String(result.stderr || result.stdout || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean)[0] || '';
+}
+
+function employeeValidationIssue(root, employee, cache) {
+  if (!employee?.path) return issue('员工仓库校验', '员工记录缺少路径，无法运行 npm run validate');
+  const cacheKey = employee.path;
+  if (cache.has(cacheKey)) return cache.get(cacheKey);
+
+  const result = spawnSync('npm', ['run', 'validate'], {
+    cwd: path.join(root, employee.path),
+    stdio: 'pipe',
+    encoding: 'utf8',
+    shell: process.platform === 'win32'
+  });
+  const value = result.status === 0
+    ? null
+    : issue('员工仓库校验', `npm run validate failed with status ${result.status ?? 'unknown'}${firstOutputLine(result) ? `: ${firstOutputLine(result)}` : ''}`);
+  cache.set(cacheKey, value);
+  return value;
+}
+
+function pmReviewIssues(root, task, result, row, employee, employeeValidationCache) {
+  const issues = [];
+  if (!result) {
+    issues.push(issue('result JSON', '未找到员工 result JSON'));
+    return issues;
+  }
+
+  const schemaErrors = [];
+  validateResultPackage(result, row.result_path || `${row.employee_alias}/${row.task_id}`, schemaErrors);
+  for (const error of schemaErrors) issues.push(issue('result schema', error));
+
+  if (!row.markdown_path) {
+    issues.push(issue('Markdown companion', '未归档 Markdown companion 报告'));
+  } else if (!pathExists(path.join(root, row.markdown_path))) {
+    issues.push(issue('Markdown companion', `${row.markdown_path} 不存在`));
+  }
+
+  if (result.status !== 'completed') {
+    issues.push(issue('result status', `status 为 ${result.status || '(missing)'}，不是 completed`));
+  }
+
+  const verification = Array.isArray(result.verification) ? result.verification : [];
+  if (verification.length === 0) {
+    issues.push(issue('verification', 'verification 缺失或为空'));
+  }
+
+  const passedCriteria = new Set();
+  verification.forEach((item, index) => {
+    const criterion = verificationCriterion(item, `verification[${index}]`);
+    if (!item || typeof item !== 'object') {
+      issues.push(issue(criterion, 'verification item 必须是对象并显式包含 passed:true'));
+      return;
+    }
+    if (item.passed !== true) {
+      issues.push(issue(criterion, `passed 必须显式为 true，当前为 ${String(item.passed)}`));
+      return;
+    }
+    passedCriteria.add(criterion);
+  });
+
+  for (const acceptance of task.acceptance || []) {
+    if (!passedCriteria.has(acceptance)) {
+      issues.push(issue(acceptance, 'acceptance 未被 verification 中 passed:true 的同名验收项覆盖'));
+    }
+  }
+
+  const validationIssue = employeeValidationIssue(root, employee, employeeValidationCache);
+  if (validationIssue) issues.push(validationIssue);
+  return issues;
 }
 
 function readResultForRow(root, collection, outboxResultPath) {
@@ -97,7 +172,14 @@ function failedVerificationSummary(failedAcceptance) {
 
 function defaultPmStatusFor(row, previous) {
   if (['accepted', 'blocked', 'canceled'].includes(previous?.pm_status)) return previous.pm_status;
-  if (previous?.pm_status === 'needs-rework' && previous.decision_updated_at) return previous.pm_status;
+  if (
+    previous?.pm_status === 'needs-rework'
+    && previous.decision_updated_at
+    && previous.pm_decision_note
+    && !previous.pm_decision_note.startsWith('自动复核：')
+  ) {
+    return previous.pm_status;
+  }
   if (row.verification_failed) return 'needs-rework';
   if (row.lifecycle === 'draft') return DRAFT_STATUS;
   if (row.lifecycle === 'submitted' || row.lifecycle === 'missing-inbox' || row.lifecycle === 'result-uncollected') return SUBMITTED_STATUS;
@@ -136,6 +218,7 @@ export function buildLiveTaskRows(root) {
   const collections = readCollections(root);
   const collectionsByKey = new Map(collections.map((item) => [item.key, item]));
   const employeeById = new Map(index.employees.map((employee) => [employee.employee_id, employee]));
+  const employeeValidationCache = new Map();
 
   const submissions = [];
   for (const filePath of listJsonFiles(path.join(root, 'tasks/submitted'))) {
@@ -157,10 +240,8 @@ export function buildLiveTaskRows(root) {
       : null;
     const outboxResult = outboxResultPath && pathExists(outboxResultPath) ? readJson(outboxResultPath) : null;
     const result = readResultForRow(root, collection, outboxResultPath);
-    const failedAcceptance = failedVerificationItems(result);
     const lifecycle = lifecycleFor({ root, collection, submitted, outboxResultPath });
-
-    rows.push({
+    const rowBase = {
       key: submitted.key,
       task_id: submitted.task_id,
       title: task.input?.title || '',
@@ -178,9 +259,19 @@ export function buildLiveTaskRows(root) {
       result_path: collection?.collected_json || '',
       markdown_path: collection?.collected_md || '',
       wake_command: submitted.wake_command || '',
-      verification_failed: failedAcceptance.length > 0,
-      failed_acceptance: failedAcceptance,
       source: 'submitted'
+    };
+    const reviewIssues = collection && result
+      ? pmReviewIssues(root, task, result, rowBase, employee, employeeValidationCache)
+      : [];
+
+    rows.push({
+      ...rowBase,
+      verification_failed: reviewIssues.length > 0,
+      failed_acceptance: reviewIssues,
+      pm_review_failed: reviewIssues.length > 0,
+      pm_review_issues: reviewIssues,
+      pm_review_checked_at: collection && result ? nowIso() : ''
     });
   }
 
@@ -208,6 +299,9 @@ export function buildLiveTaskRows(root) {
       wake_command: '',
       verification_failed: false,
       failed_acceptance: [],
+      pm_review_failed: false,
+      pm_review_issues: [],
+      pm_review_checked_at: '',
       source: 'draft'
     });
   }
@@ -233,14 +327,20 @@ export function reconcileLedger(root) {
     const autoReviewNote = row.verification_failed
       ? `自动复核：以下验收未通过：${failedVerificationSummary(row.failed_acceptance)}`
       : '';
+    const previousNoteIsManual = previous?.pm_decision_note
+      && !String(previous.pm_decision_note).startsWith('自动复核：');
+    const shouldPreserveDecisionNote = previous?.pm_status === pmStatus
+      && previousNoteIsManual
+      && ['accepted', 'blocked', 'canceled', 'needs-rework'].includes(pmStatus);
     const decisionUpdatedAt = previous?.decision_updated_at && previous.pm_status === pmStatus
+      && (pmStatus !== 'needs-rework' || previousNoteIsManual)
       ? previous.decision_updated_at
       : (pmStatus === 'needs-rework' && row.verification_failed ? nowIso() : '');
     return {
       schema_version: 'pm-ledger-task.v1',
       ...row,
       pm_status: pmStatus,
-      pm_decision_note: previous?.pm_decision_note && previous.pm_status === pmStatus
+      pm_decision_note: shouldPreserveDecisionNote
         ? previous.pm_decision_note
         : autoReviewNote,
       next_action: nextAction,

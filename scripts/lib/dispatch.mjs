@@ -15,6 +15,9 @@ import {
 import {
   activeRunForEmployee
 } from './runs.mjs';
+import {
+  readYaml
+} from './yaml-lite.mjs';
 
 export function loadTask(root, taskFile) {
   const taskPath = path.resolve(root, taskFile);
@@ -55,6 +58,24 @@ function employeeFailureReason(root, employee, task) {
     return `state is ${employee.status?.state || 'unknown'}, not idle`;
   }
   return '';
+}
+
+export function assertEmployeeModelProfile(root, employee, task) {
+  const profile = task.model_hint || employee.default_model_profile;
+  const modelsPath = path.join(root, employee.path, 'config/models.yaml');
+  if (!pathExists(modelsPath)) {
+    throw new Error(`${employee.alias || employee.employee_id} missing config/models.yaml`);
+  }
+
+  const modelConfig = readYaml(modelsPath);
+  const profiles = modelConfig.profiles || {};
+  if (!profiles[profile]) {
+    throw new Error([
+      `${employee.alias || employee.employee_id} does not define model profile: ${profile}`,
+      `available profiles: ${Object.keys(profiles).join(', ') || '(none)'}`
+    ].join('\n'));
+  }
+  return profile;
 }
 
 export function selectEmployee(root, index, task, selector = '') {
@@ -118,6 +139,7 @@ export function buildLaunchCommand(employee, launchArgs) {
 }
 
 export function prepareDispatch(root, taskPath, task, employee, options = {}) {
+  assertEmployeeModelProfile(root, employee, task);
   const inboxDir = employeeProtocolPath(root, employee, employee.paths.inbox);
   const employeeTaskPath = path.join(inboxDir, `${task.task_id}.json`);
   const submittedPath = path.join(

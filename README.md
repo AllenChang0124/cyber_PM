@@ -159,6 +159,8 @@ npm run intake -- --file tasks/drafts/<task_id>.json --background
 
 默认模式会让员工一次性执行任务并自动退出；`--interactive` 仅用于调试，会回到需要人工接管和手动退出的 Claude Code 会话。
 `--background` 会后台启动员工，命令立即返回，适合多个员工并行。
+非 `--dry-run` 的 `intake` 会通过 `state/locks/intake.lock` 串行化员工选择、派发写入和 run 注册，避免同一员工被并发派发多个 active run。
+派发前还会校验最终 model profile 是否存在于目标员工的 `config/models.yaml`。
 
 已验证结果：
 
@@ -276,7 +278,7 @@ canceled
 
 PM 决策会写入 `state/task-ledger.json`，并追加 `logs/pm-events.jsonl`。两者都是运行态文件，不提交。
 
-如果结果中存在 `verification[].passed=false`，`reconcile` 会自动把任务标记为 `needs-rework`，并在 `tasks/drafts/` 生成返工任务草稿。返工草稿不会自动派发，仍需通过 `intake` 进入下一轮。
+`reconcile` 会做 PM 侧客观复核：result JSON 必须 schema 合法，Markdown companion 必须存在，每条 acceptance 必须被 `verification` 中同名且 `passed:true` 的对象覆盖，并且员工 repo 的 `npm run validate` 必须通过。任何 `passed` 缺失、字符串 verification、漏覆盖或员工校验失败，都会自动标记为 `needs-rework`，并在 `tasks/drafts/` 生成返工任务草稿。返工草稿不会自动派发，仍需通过 `intake` 进入下一轮。
 
 ## 11. 收集结果
 
@@ -378,9 +380,14 @@ PM 仓库只提交框架、脚本、示例和文档。以下内容是运行时�
 
 - 修改模板脚本、skills、Claude 配置、MCP 声明、协议文档：切到 `../cyber_employee` 修改、提交、push。
 - 修改具体员工身份：只改 `employees/<employee>/config/employee.yaml`，再在员工 repo 内运行 `npm run sync`。
-- 同步模板更新到已部署员工：
+- `setup:demo` 使用 `git clone --local ../cyber_employee` 创建 demo 员工，因此 demo 员工的 `origin` 默认指向本地 sibling 模板 repo。模板更新流程是：先在 `../cyber_employee` 拉取或完成并 push 模板更新，再让 PM 内 demo 员工从这个本地模板 repo 拉取更新。
+- 同步本地模板更新到已部署 demo 员工：
 
 ```bash
+cd ../cyber_employee
+git pull --rebase --autostash origin main
+
+cd ../cyber_PM
 cd employees/junior-demo
 git pull --rebase --autostash origin main
 npm run sync
