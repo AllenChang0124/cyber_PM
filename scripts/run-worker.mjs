@@ -71,7 +71,7 @@ appendLog(logPath, `launch_command=${run.launch_command}\n\n`);
 
 const child = spawn('npm', run.launch_args || ['run', 'claude', '--', '--profile', run.profile, '--task', run.task_id, '--auto-run'], {
   cwd: path.join(root, run.employee_path),
-  stdio: ['ignore', 'pipe', 'pipe'],
+  stdio: ['pipe', 'pipe', 'pipe'],
   shell: process.platform === 'win32'
 });
 
