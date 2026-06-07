@@ -9,6 +9,7 @@ import {
   writeJson
 } from './lib/project.mjs';
 import {
+  PROTOCOL_VERSIONS,
   validateTaskPackage
 } from './lib/protocol.mjs';
 
@@ -69,7 +70,7 @@ const acceptance = collect(args.acceptance);
 const allowedPaths = collect(args['allowed-path']);
 
 const task = {
-  schema_version: 'employee-task.v1',
+  schema_version: PROTOCOL_VERSIONS.task,
   task_id: taskId,
   created_at: nowIso(),
   priority,

@@ -12,6 +12,7 @@ import {
   writeJson
 } from './project.mjs';
 import {
+  PROTOCOL_VERSIONS,
   discoverEmployees,
   employeeProtocolPath,
   validateResultPackage,
@@ -409,7 +410,7 @@ function buildReworkTask(root, ledgerTask, originalTask, reworkTaskId) {
   }
 
   return {
-    schema_version: 'employee-task.v1',
+    schema_version: PROTOCOL_VERSIONS.task,
     task_id: reworkTaskId,
     created_at: nowIso(),
     priority: originalTask.priority || ledgerTask.priority || 'normal',

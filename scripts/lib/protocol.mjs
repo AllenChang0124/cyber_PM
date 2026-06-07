@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   ensureDir,
   isSafeRelativePath,
@@ -11,59 +12,57 @@ import {
   writeJson
 } from './project.mjs';
 
-export const TASK_FIELDS = [
-  'schema_version',
-  'task_id',
-  'created_at',
-  'priority',
-  'task_type',
-  'assignee_level',
-  'model_hint',
-  'input',
-  'acceptance',
-  'constraints'
-];
+function protocolIndexPath(protocolDir) {
+  return path.join(protocolDir, 'index.mjs');
+}
 
-export const RESULT_FIELDS = [
-  'schema_version',
-  'task_id',
-  'status',
-  'model_used',
-  'started_at',
-  'completed_at',
-  'summary',
-  'changes',
-  'verification',
-  'artifacts',
-  'notes'
-];
+function protocolCandidates(startDir) {
+  const candidates = [];
+  let current = path.resolve(startDir);
+  while (true) {
+    candidates.push(path.join(current, 'cyber_protocol'));
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+  return candidates;
+}
 
-export const AGENT_FIELDS = [
-  'schema_version',
-  'employee_id',
-  'name',
-  'level',
-  'role',
-  'default_model_profile',
-  'capabilities',
-  'accepts_task_types',
-  'paths'
-];
+function resolveProtocolDir() {
+  if (process.env.CYBER_PROTOCOL_DIR) {
+    const explicit = path.resolve(process.cwd(), process.env.CYBER_PROTOCOL_DIR);
+    if (pathExists(protocolIndexPath(explicit))) return explicit;
+    throw new Error(`CYBER_PROTOCOL_DIR does not contain index.mjs: ${explicit}`);
+  }
 
-export const STATUS_FIELDS = [
-  'schema_version',
-  'employee_id',
-  'state',
-  'active_task_id',
-  'model_profile',
-  'updated_at'
-];
+  const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+  const starts = [process.cwd(), moduleDir];
+  const seen = new Set();
+  for (const start of starts) {
+    for (const candidate of protocolCandidates(start)) {
+      if (seen.has(candidate)) continue;
+      seen.add(candidate);
+      if (pathExists(protocolIndexPath(candidate))) return candidate;
+    }
+  }
 
-export const PRIORITIES = ['low', 'normal', 'high'];
-export const TASK_TYPES = ['implementation', 'testing', 'documentation', 'research'];
-export const ASSIGNEE_LEVELS = ['', 'junior', 'senior'];
-export const RESULT_STATUSES = ['completed', 'failed', 'blocked'];
-export const EMPLOYEE_STATES = ['idle', 'working'];
+  throw new Error('cyber_protocol not found; set CYBER_PROTOCOL_DIR or place cyber_protocol as a sibling/ancestor repo');
+}
+
+const sharedProtocol = await import(pathToFileURL(protocolIndexPath(resolveProtocolDir())).href);
+
+export const TASK_FIELDS = sharedProtocol.TASK_FIELDS;
+export const RESULT_FIELDS = sharedProtocol.RESULT_FIELDS;
+export const AGENT_FIELDS = sharedProtocol.AGENT_FIELDS;
+export const STATUS_FIELDS = sharedProtocol.STATUS_FIELDS;
+
+export const PRIORITIES = sharedProtocol.PRIORITIES;
+export const TASK_TYPES = sharedProtocol.TASK_TYPES;
+export const ASSIGNEE_LEVELS = sharedProtocol.ASSIGNEE_LEVELS;
+export const RESULT_STATUSES = sharedProtocol.RESULT_STATUSES;
+export const EMPLOYEE_STATES = sharedProtocol.EMPLOYEE_STATES;
+
+export const PROTOCOL_VERSIONS = sharedProtocol.PROTOCOL_VERSIONS;
 
 function validateEnum(value, allowed, label, errors) {
   if (!allowed.includes(value)) {
@@ -81,47 +80,20 @@ export function requireFields(object, fields, label, errors) {
   }
 }
 
+function appendSchemaIssues(result, errors) {
+  for (const issue of result.issues || []) errors.push(issue.message || String(issue));
+}
+
 export function validateTaskPackage(task, label, errors) {
-  requireFields(task, TASK_FIELDS, label, errors);
-  if (task?.schema_version && task.schema_version !== 'employee-task.v1') {
-    errors.push(`${label} schema_version must be employee-task.v1`);
-  }
-  if (task?.priority) validateEnum(task.priority, PRIORITIES, `${label} priority`, errors);
-  if (task?.task_type) validateEnum(task.task_type, TASK_TYPES, `${label} task_type`, errors);
-  if (typeof task?.assignee_level === 'string') {
-    validateEnum(task.assignee_level, ASSIGNEE_LEVELS, `${label} assignee_level`, errors);
-  }
-  requireFields(task?.input, ['title', 'body_md', 'attachments'], `${label} input`, errors);
-  requireFields(task?.constraints, ['allowed_paths', 'deadline_at'], `${label} constraints`, errors);
-  if (task?.input?.attachments && !Array.isArray(task.input.attachments)) {
-    errors.push(`${label} input.attachments must be an array`);
-  }
-  if (task?.acceptance && !Array.isArray(task.acceptance)) {
-    errors.push(`${label} acceptance must be an array`);
-  }
-  if (task?.constraints?.allowed_paths && !Array.isArray(task.constraints.allowed_paths)) {
-    errors.push(`${label} constraints.allowed_paths must be an array`);
-  }
+  appendSchemaIssues(sharedProtocol.validateTaskPackage(task, label), errors);
 }
 
 export function validateResultPackage(result, label, errors) {
-  requireFields(result, RESULT_FIELDS, label, errors);
-  if (result?.schema_version && result.schema_version !== 'employee-result.v1') {
-    errors.push(`${label} schema_version must be employee-result.v1`);
-  }
-  if (result?.status) validateEnum(result.status, RESULT_STATUSES, `${label} status`, errors);
-  for (const field of ['changes', 'verification', 'artifacts', 'notes']) {
-    if (result?.[field] && !Array.isArray(result[field])) {
-      errors.push(`${label} ${field} must be an array`);
-    }
-  }
+  appendSchemaIssues(sharedProtocol.validateResultPackage(result, label), errors);
 }
 
 export function validateAgent(agent, label, errors) {
-  requireFields(agent, AGENT_FIELDS, label, errors);
-  if (agent?.schema_version && agent.schema_version !== 'employee-agent.v1') {
-    errors.push(`${label} schema_version must be employee-agent.v1`);
-  }
+  appendSchemaIssues(sharedProtocol.validateAgentDocument(agent, label), errors);
   requireFields(agent?.paths, ['inbox', 'outbox', 'status', 'events'], `${label} paths`, errors);
   if (agent?.paths) {
     for (const [key, value] of Object.entries(agent.paths)) {
@@ -131,11 +103,7 @@ export function validateAgent(agent, label, errors) {
 }
 
 export function validateStatus(status, label, errors) {
-  requireFields(status, STATUS_FIELDS, label, errors);
-  if (status?.schema_version && status.schema_version !== 'employee-status.v1') {
-    errors.push(`${label} schema_version must be employee-status.v1`);
-  }
-  if (status?.state) validateEnum(status.state, EMPLOYEE_STATES, `${label} state`, errors);
+  appendSchemaIssues(sharedProtocol.validateStatusDocument(status, label), errors);
 }
 
 export function loadEmployeeConfig(root) {

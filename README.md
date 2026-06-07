@@ -18,9 +18,10 @@
 codex/
   cyber_PM/
   cyber_employee/
+  cyber_protocol/
 ```
 
-`cyber_PM` 是 PM 工作区。`cyber_employee` 是员工母体模板。你手动决定要部署哪些员工，并把员工 clone 放在 `cyber_PM/employees/` 下；这些 clone 不进入 PM 仓库提交。
+`cyber_PM` 是 PM 工作区。`cyber_employee` 是员工母体模板。`cyber_protocol` 是 PM 与员工共同引用的协议 schema 小包。你手动决定要部署哪些员工，并把员工 clone 放在 `cyber_PM/employees/` 下；这些 clone 不进入 PM 仓库提交。
 
 PM 后续只在这些已部署员工中调度，不负责自动创建无限员工池。
 
@@ -29,6 +30,7 @@ Codex 自带 `/plan` 适合会话内思考和与你对齐方案；`cyber_PM/plan
 模板维护准则：
 
 - 员工模板共性修改只在 sibling repo `../cyber_employee` 中完成、提交并 push 到 GitHub。
+- 协议字段、版本和枚举只在 sibling repo `../cyber_protocol` 的 JSON Schema 中维护，PM 和 employee validate 共同引用。
 - `cyber_PM/employees/*` 是具体员工 clone，只用于运行、身份配置和同步模板更新。
 - 不从 `employees/*` 直接把模板改动 push 到模板 main，避免把具体员工身份污染母体模板。
 - 模板更新后，在 PM 内同步员工 clone，再运行员工侧 `npm run sync` 和 PM 侧 `npm run discover`。
@@ -279,6 +281,8 @@ canceled
 PM 决策会写入 `state/task-ledger.json`，并追加 `logs/pm-events.jsonl`。两者都是运行态文件，不提交。
 
 `reconcile` 会做 PM 侧客观复核：result JSON 必须 schema 合法，Markdown companion 必须存在，每条 acceptance 必须被 `verification` 中同名且 `passed:true` 的对象覆盖，并且员工 repo 的 `npm run validate` 必须通过。任何 `passed` 缺失、字符串 verification、漏覆盖或员工校验失败，都会自动标记为 `needs-rework`，并在 `tasks/drafts/` 生成返工任务草稿。返工草稿不会自动派发，仍需通过 `intake` 进入下一轮。
+
+`employee-task.v1`、`employee-result.v1`、`employee-agent.v1`、`employee-status.v1` 的 schema 来自 sibling `../cyber_protocol`。如果协议包缺失，PM validation 会明确失败；需要非标准目录时可设置 `CYBER_PROTOCOL_DIR`。
 
 ## 11. 收集结果
 
