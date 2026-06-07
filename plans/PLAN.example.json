@@ -14,26 +14,47 @@
   },
   "tasks": [
     {
-      "task_id": "task-0001",
+      "task_id": "task-plan-example-senior",
       "title": "示例 senior 调研任务",
       "task_type": "research",
       "assignee_level": "senior",
       "employee_hint": "senior-demo",
+      "priority": "normal",
+      "model_hint": "senior-deepseek",
+      "body_md": "请调研目标问题，输出关键判断、风险和后续执行建议。",
+      "acceptance": [
+        "说明调研结论和依据。",
+        "列出至少 2 个风险或不确定点。",
+        "verification 中逐条覆盖本任务 acceptance，且每项显式包含 passed:true 或 passed:false。"
+      ],
+      "allowed_paths": [
+        "workspace/**",
+        "outbox/**",
+        "state/status.json",
+        "logs/events.jsonl"
+      ],
+      "deadline_at": null,
       "depends_on": [],
-      "draft_path": "tasks/drafts/task-0001.json",
+      "draft_path": "tasks/drafts/task-plan-example-senior.json",
       "result_path": "",
       "pm_status": "draft"
     },
     {
-      "task_id": "task-0002",
+      "task_id": "task-plan-example-junior",
       "title": "示例 junior 执行任务",
       "task_type": "documentation",
       "assignee_level": "junior",
       "employee_hint": "junior-demo",
-      "depends_on": [
-        "task-0001"
+      "priority": "normal",
+      "body_md": "请基于 senior 调研结果，整理一份面向用户的执行说明。",
+      "acceptance": [
+        "写出结构清晰的 Markdown 说明。",
+        "verification 中逐条覆盖本任务 acceptance，且每项显式包含 passed:true 或 passed:false。"
       ],
-      "draft_path": "tasks/drafts/task-0002.json",
+      "depends_on": [
+        "task-plan-example-senior"
+      ],
+      "draft_path": "tasks/drafts/task-plan-example-junior.json",
       "result_path": "",
       "pm_status": "draft"
     }

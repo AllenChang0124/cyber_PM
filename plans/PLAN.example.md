@@ -17,8 +17,8 @@
 
 | task_id | title | employee | status |
 | --- | --- | --- | --- |
-| task-0001 | 示例 senior 调研任务 | senior-demo | draft |
-| task-0002 | 示例 junior 执行任务 | junior-demo | draft |
+| task-plan-example-senior | 示例 senior 调研任务 | senior-demo | draft |
+| task-plan-example-junior | 示例 junior 执行任务 | junior-demo | draft |
 
 ## Final Summary
 

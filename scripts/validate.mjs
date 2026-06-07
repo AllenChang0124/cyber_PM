@@ -86,7 +86,7 @@ for (const dir of requiredDirs) {
 }
 
 const packageJson = validateJsonFile('package.json', ['name', 'version', 'private', 'type', 'scripts']);
-for (const scriptName of ['doctor', 'validate', 'setup:demo', 'discover', 'draft', 'intake', 'submit', 'status', 'tasks', 'runs', 'results', 'reconcile', 'resolve', 'collect', 'sweep', 'run-worker']) {
+for (const scriptName of ['doctor', 'validate', 'setup:demo', 'discover', 'plan', 'draft', 'intake', 'submit', 'status', 'tasks', 'runs', 'results', 'reconcile', 'resolve', 'collect', 'sweep', 'run-worker']) {
   if (!packageJson?.scripts?.[scriptName]) fail(`package.json missing script: ${scriptName}`);
 }
 

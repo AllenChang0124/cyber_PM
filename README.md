@@ -85,6 +85,23 @@ Codex PM 收到复杂需求后，应先在会话中规划并与用户对齐，�
 - 无依赖任务可并行派发；有依赖任务按 `depends_on` 顺序推进。
 - 每次 `runs/tasks/results/resolve` 后，同步更新对应 plan。
 
+Plan Runner 可以推进已经落盘的 plan：
+
+```bash
+npm run plan -- --file plans/<plan_id>.json --status
+npm run plan -- --file plans/<plan_id>.json --advance
+npm run plan -- --file plans/<plan_id>.json --advance --apply
+npm run plan -- --file plans/<plan_id>.json --advance --apply --dispatch
+```
+
+默认 `--advance` 只预览，不写 draft、不改 plan、不派发。`--apply` 才会写入缺失 draft 并回卷 ledger 状态；`--dispatch` 才会对 ready tasks 调用 `intake`。测试派发流程但不启动员工模型时，使用：
+
+```bash
+npm run plan -- --file plans/<plan_id>.json --advance --apply --dispatch --no-launch
+```
+
+Plan Runner 不做自然语言生成 plan，也不会自动把结果验收为 `accepted`；PM 仍需通过 `resolve` 做人工验收决策。
+
 ## 4. 起草任务
 
 PM 可以先把用户需求整理成合法的 `employee-task.v1` 草稿：
